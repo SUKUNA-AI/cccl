@@ -34,6 +34,10 @@ The matrix builder and helper workflows expose only ``workflow_call``.
 Nested workflow calls use ``$/.github/workflows/...``
 to reference implementations in the workflow's own repository and commit.
 
+.. note::
+   The use of ``$/`` references require self-hosted runners to use
+   GitHub Actions runner version 2.336.0 or newer.
+
 For example, nightly matrix jobs follow this chain:
 
 .. code-block:: text
@@ -56,6 +60,9 @@ Source and matrix selection
 
 Callable CI profiles, wheel builds, and bisect accept the following inputs.
 Repository and ref inputs default to the caller repository and calling ref.
+Provide ``source_repo`` and ``source_ref`` together when overriding the source
+repository. Likewise, provide ``matrix_repo`` and ``matrix_ref`` together when
+overriding the matrix repository.
 
 .. list-table::
    :header-rows: 1
@@ -102,9 +109,12 @@ For example, a caller can select source and matrix repositories independently:
         secrets: inherit
 
 Source and matrix access, run artifacts, and pull request comments use the
-caller's ``GITHUB_TOKEN``. Matrix jobs fall back to GitHub-hosted runners for
-forks. Repositories enabled for self-hosted CI use the matrix's runner labels.
-The PR profile also requires ``pull-requests: write`` to post comments.
+caller's ``GITHUB_TOKEN``. Selected source and matrix repositories must be
+public or the caller repository, which may be private.
+
+Matrix jobs fall back to GitHub-hosted runners for forks. Repositories enabled
+for self-hosted CI use the matrix's runner labels. The PR profile also requires
+``pull-requests: write`` to post comments.
 
 Workflow reference
 ------------------
