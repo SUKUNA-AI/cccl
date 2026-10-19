@@ -47,41 +47,32 @@ inline constexpr size_t __max_vector_access = 32ull;
 inline constexpr size_t __max_vector_access = 16ull;
 #endif // _CCCL_CTK_AT_LEAST(13, 0)
 
-//! `_Count` words that are accessed together, aligned for a single vector access of their size
-template <class _Word, size_t _Count>
-struct alignas(sizeof(_Word) * _Count) __vector_word
-{
-  static_assert(sizeof(_Word) * _Count <= __max_vector_access, "A vector word must fit into a single vector access");
-
-  using value_type = _Word;
-
-  static constexpr size_t __count = _Count;
-
-  _Word __storage_[_Count];
-};
-
-//! Uninitialized storage of `_NumVectors` vector words, aligned for the widest vector access that evenly divides it, at
-//! most to `__max_vector_access` but at least to `_MinAlignment`
-template <class _VectorWord, size_t _MinAlignment, size_t _NumVectors>
+//! Uninitialized storage of `_NumVectors` vectors of `_VectorSize` words, aligned for the widest vector access that
+//! evenly divides it, at most to `__max_vector_access` but at least to `_MinAlignment`
+template <class _WordType, size_t _MinAlignment, size_t _NumVectors, size_t _VectorSize>
 struct __bytes_vectorized_t
 {
-  using value_type = _VectorWord;
+  static_assert(sizeof(_WordType) * _VectorSize <= __max_vector_access,
+                "A vector must fit into a single vector access");
+
+  using value_type = _WordType[_VectorSize];
 
   // Aligned to the widest vector access that evenly divides the storage size
-  static constexpr size_t __full_alignment = size_t{1} << ::cuda::std::countr_zero(sizeof(_VectorWord) * _NumVectors);
+  static constexpr size_t __full_alignment = size_t{1} << ::cuda::std::countr_zero(sizeof(value_type) * _NumVectors);
   static constexpr size_t __alignment =
     ::cuda::std::max(_MinAlignment, ::cuda::std::min(__full_alignment, __max_vector_access));
 
-  alignas(__alignment) _VectorWord __storage_[_NumVectors];
+  // A single array, so that a pointer to the first word can be iterated over the whole storage
+  alignas(__alignment) _WordType __storage_[_NumVectors * _VectorSize];
 
   static_assert(sizeof(__storage_) % __alignment == 0, "Storage size must be a multiple of its alignment");
 
-  [[nodiscard]] _CCCL_API constexpr _VectorWord* data() noexcept
+  [[nodiscard]] _CCCL_API constexpr _WordType* data() noexcept
   {
     return __storage_;
   }
 
-  [[nodiscard]] _CCCL_API constexpr const _VectorWord* data() const noexcept
+  [[nodiscard]] _CCCL_API constexpr const _WordType* data() const noexcept
   {
     return __storage_;
   }
@@ -94,10 +85,9 @@ struct __bytes_vectorized_t
     static_assert(sizeof(_Tp) <= sizeof(__storage_), "T does not fit in vectorized storage");
     static_assert(alignof(_Tp) <= __alignment, "T is more aligned than vectorized storage");
     const auto __i = static_cast<size_t>(__index);
-    if constexpr (::cuda::std::is_same_v<::cuda::std::remove_cvref_t<_Tp>, typename _VectorWord::value_type>)
+    if constexpr (::cuda::std::is_same_v<::cuda::std::remove_cvref_t<_Tp>, _WordType>)
     {
-      // Each vector word is a separate array, so we must not index across them
-      return __storage_[__i / _VectorWord::__count].__storage_[__i % _VectorWord::__count];
+      return __storage_[__i];
     }
     else
     {
@@ -113,10 +103,9 @@ struct __bytes_vectorized_t
     static_assert(sizeof(_Tp) <= sizeof(__storage_), "T does not fit in vectorized storage");
     static_assert(alignof(_Tp) <= __alignment, "T is more aligned than vectorized storage");
     const auto __i = static_cast<size_t>(__index);
-    if constexpr (::cuda::std::is_same_v<::cuda::std::remove_cvref_t<_Tp>, typename _VectorWord::value_type>)
+    if constexpr (::cuda::std::is_same_v<::cuda::std::remove_cvref_t<_Tp>, _WordType>)
     {
-      // Each vector word is a separate array, so we must not index across them
-      return __storage_[__i / _VectorWord::__count].__storage_[__i % _VectorWord::__count];
+      return __storage_[__i];
     }
     else
     {
@@ -137,20 +126,16 @@ template <class _Tp, size_t _VecSize>
     constexpr size_t __num_words = sizeof(_Tp) / sizeof(_Word) * _VecSize;
     constexpr size_t __words_per_vector =
       ::cuda::std::min(size_t{1} << ::cuda::std::countr_zero(__num_words), __max_vector_access / sizeof(_Word));
-    return __bytes_vectorized_t<__vector_word<_Word, __words_per_vector>,
-                                alignof(_Tp),
-                                __num_words / __words_per_vector>{};
+    return __bytes_vectorized_t<_Word, alignof(_Tp), __num_words / __words_per_vector, __words_per_vector>{};
   }
   else
   { // Default case: use 32 bit words as the vectorized storage
-    return __bytes_vectorized_t<__vector_word<::cuda::std::uint32_t, 1>,
-                                alignof(_Tp),
-                                ::cuda::ceil_div(sizeof(_Tp), 4) * _VecSize>{};
+    return __bytes_vectorized_t<::cuda::std::uint32_t, alignof(_Tp), ::cuda::ceil_div(sizeof(_Tp), 4) * _VecSize, 1>{};
   }
 }
 
 //! Storage for `_VecSize` objects of type `_Tp`. Arithmetic types use themselves as the word. Other types use unsigned
-//! integer words of the alignment of `_Tp`, at most 8 bytes. Words are grouped into the widest vector words that evenly
+//! integer words of the alignment of `_Tp`, at most 8 bytes. Words are grouped into the widest vectors that evenly
 //! divide the storage. The storage is aligned for the widest vector access of its size, at most to
 //! `__max_vector_access` but at least to `alignof(_Tp)`
 template <class _Tp, size_t _VecSize>

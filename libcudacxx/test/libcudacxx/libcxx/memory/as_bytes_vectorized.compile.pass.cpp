@@ -40,30 +40,39 @@ struct alignas(64) aligned_64_t
 template <class Word, cuda::std::size_t Count>
 TEST_FUNC constexpr void test_vector_word()
 {
-  static_assert(sizeof(cuda::__vector_word<Word, Count>) == sizeof(Word) * Count);
-  static_assert(alignof(cuda::__vector_word<Word, Count>) == sizeof(Word) * Count);
+  using storage_t = cuda::__bytes_vectorized_t<Word, 1, 1, Count>;
+  static_assert(cuda::std::is_same_v<typename storage_t::value_type, Word[Count]>);
+  static_assert(sizeof(storage_t) == sizeof(Word) * Count);
+  static_assert(alignof(storage_t) == sizeof(Word) * Count);
+}
+
+// Every word of the storage is reachable through a pointer to its first word
+template <class Storage>
+TEST_FUNC constexpr bool test_flat_iteration()
+{
+  Storage storage{};
+  const auto* const words  = storage.data();
+  constexpr auto num_words = sizeof(Storage) / sizeof(*words);
+  return words[num_words - 1] == words[0];
 }
 
 template <class T, cuda::std::size_t VecSize, class Word, cuda::std::size_t WordsPerVector, cuda::std::size_t NumVectors>
 TEST_FUNC constexpr void test_vec_size()
 {
-  static_assert(
-    cuda::std::is_same_v<cuda::__as_bytes_vectorized_t<T, VecSize>,
-                         cuda::__bytes_vectorized_t<cuda::__vector_word<Word, WordsPerVector>, alignof(T), NumVectors>>);
+  static_assert(cuda::std::is_same_v<cuda::__as_bytes_vectorized_t<T, VecSize>,
+                                     cuda::__bytes_vectorized_t<Word, alignof(T), NumVectors, WordsPerVector>>);
+  static_assert(test_flat_iteration<cuda::__as_bytes_vectorized_t<T, VecSize>>());
 }
 
 template <class T, class Word, cuda::std::size_t WordsPerItem>
 TEST_FUNC constexpr void test_scalar_words()
 {
-  static_assert(
-    cuda::std::is_same_v<cuda::__as_bytes_vectorized_t<T, 1>,
-                         cuda::__bytes_vectorized_t<cuda::__vector_word<Word, 1>, alignof(T), WordsPerItem>>);
-  static_assert(
-    cuda::std::is_same_v<cuda::__as_bytes_vectorized_t<T, 3>,
-                         cuda::__bytes_vectorized_t<cuda::__vector_word<Word, 1>, alignof(T), 3 * WordsPerItem>>);
-  static_assert(
-    cuda::std::is_same_v<cuda::__as_bytes_vectorized_t<T, 16>,
-                         cuda::__bytes_vectorized_t<cuda::__vector_word<Word, 1>, alignof(T), 16 * WordsPerItem>>);
+  static_assert(cuda::std::is_same_v<cuda::__as_bytes_vectorized_t<T, 1>,
+                                     cuda::__bytes_vectorized_t<Word, alignof(T), WordsPerItem, 1>>);
+  static_assert(cuda::std::is_same_v<cuda::__as_bytes_vectorized_t<T, 3>,
+                                     cuda::__bytes_vectorized_t<Word, alignof(T), 3 * WordsPerItem, 1>>);
+  static_assert(cuda::std::is_same_v<cuda::__as_bytes_vectorized_t<T, 16>,
+                                     cuda::__bytes_vectorized_t<Word, alignof(T), 16 * WordsPerItem, 1>>);
 }
 
 template <class T, class Word>
