@@ -52,8 +52,38 @@ CUB_TEST("Device radix sort keys with runs_on sorts correctly", "[radix_sort][de
     const auto expected = radix_sort_reference(keys_in, false);
     launch([&](std::uint8_t* storage, size_t& bytes, cudaStream_t stream = nullptr) {
       const auto launch_env = cuda::std::execution::env{cuda::stream_ref{stream}, env};
-      return cub::DeviceRadixSort::SortKeys(
+      const auto error      = cub::DeviceRadixSort::SortKeys(
         storage, bytes, keys_in.data().get(), keys_out.data().get(), num_items, 0, 32, launch_env);
+
+      if (storage == nullptr)
+      {
+        REQUIRE(cudaSuccess == error);
+
+        size_t direct_bytes = 0;
+        REQUIRE(
+          cudaSuccess
+          == cub::DeviceRadixSort::SortKeys(
+            nullptr,
+            direct_bytes,
+            keys_in.data().get(),
+            keys_out.data().get(),
+            num_items,
+            0,
+            32,
+            cuda::stream_ref{stream}));
+
+        CAPTURE(bytes, direct_bytes);
+        REQUIRE(bytes >= direct_bytes);
+        // RunsOn should always provide a worst-case storage estimate.
+        REQUIRE(bytes <= 5 * direct_bytes);
+
+        if (!provide_description)
+        {
+          REQUIRE(bytes == direct_bytes);
+        }
+      }
+
+      return error;
     });
     REQUIRE(keys_out == expected);
   }
@@ -63,8 +93,38 @@ CUB_TEST("Device radix sort keys with runs_on sorts correctly", "[radix_sort][de
     const auto expected = radix_sort_reference(keys_in, true);
     launch([&](std::uint8_t* storage, size_t& bytes, cudaStream_t stream = nullptr) {
       const auto launch_env = cuda::std::execution::env{cuda::stream_ref{stream}, env};
-      return cub::DeviceRadixSort::SortKeysDescending(
+      const auto error      = cub::DeviceRadixSort::SortKeysDescending(
         storage, bytes, keys_in.data().get(), keys_out.data().get(), num_items, 0, 32, launch_env);
+
+      if (storage == nullptr)
+      {
+        REQUIRE(cudaSuccess == error);
+
+        size_t direct_bytes = 0;
+        REQUIRE(
+          cudaSuccess
+          == cub::DeviceRadixSort::SortKeysDescending(
+            nullptr,
+            direct_bytes,
+            keys_in.data().get(),
+            keys_out.data().get(),
+            num_items,
+            0,
+            32,
+            cuda::stream_ref{stream}));
+
+        CAPTURE(bytes, direct_bytes);
+        REQUIRE(bytes >= direct_bytes);
+        // RunsOn should always provide a worst-case storage estimate.
+        REQUIRE(bytes <= 5 * direct_bytes);
+
+        if (!provide_description)
+        {
+          REQUIRE(bytes == direct_bytes);
+        }
+      }
+
+      return error;
     });
     REQUIRE(keys_out == expected);
   }
@@ -135,7 +195,7 @@ CUB_TEST("Device radix sort pairs with runs_on sorts correctly", "[radix_sort][d
     const auto expected = radix_sort_reference(keys_in, values_in, false);
     launch([&](std::uint8_t* storage, size_t& bytes, cudaStream_t stream = nullptr) {
       const auto launch_env = cuda::std::execution::env{cuda::stream_ref{stream}, env};
-      return cub::DeviceRadixSort::SortPairs(
+      const auto error      = cub::DeviceRadixSort::SortPairs(
         storage,
         bytes,
         keys_in.data().get(),
@@ -146,6 +206,38 @@ CUB_TEST("Device radix sort pairs with runs_on sorts correctly", "[radix_sort][d
         0,
         32,
         launch_env);
+
+      if (storage == nullptr)
+      {
+        REQUIRE(cudaSuccess == error);
+
+        size_t direct_bytes = 0;
+        REQUIRE(
+          cudaSuccess
+          == cub::DeviceRadixSort::SortPairs(
+            nullptr,
+            direct_bytes,
+            keys_in.data().get(),
+            keys_out.data().get(),
+            values_in.data().get(),
+            values_out.data().get(),
+            num_items,
+            0,
+            32,
+            cuda::stream_ref{stream}));
+
+        CAPTURE(bytes, direct_bytes);
+        REQUIRE(bytes >= direct_bytes);
+        // RunsOn should always provide a worst-case storage estimate.
+        REQUIRE(bytes <= 5 * direct_bytes);
+
+        if (!provide_description)
+        {
+          REQUIRE(bytes == direct_bytes);
+        }
+      }
+
+      return error;
     });
     REQUIRE(keys_out == expected.first);
     REQUIRE(values_out == expected.second);
@@ -156,7 +248,7 @@ CUB_TEST("Device radix sort pairs with runs_on sorts correctly", "[radix_sort][d
     const auto expected = radix_sort_reference(keys_in, values_in, true);
     launch([&](std::uint8_t* storage, size_t& bytes, cudaStream_t stream = nullptr) {
       const auto launch_env = cuda::std::execution::env{cuda::stream_ref{stream}, env};
-      return cub::DeviceRadixSort::SortPairsDescending(
+      const auto error      = cub::DeviceRadixSort::SortPairsDescending(
         storage,
         bytes,
         keys_in.data().get(),
@@ -167,6 +259,38 @@ CUB_TEST("Device radix sort pairs with runs_on sorts correctly", "[radix_sort][d
         0,
         32,
         launch_env);
+
+      if (storage == nullptr)
+      {
+        REQUIRE(cudaSuccess == error);
+
+        size_t direct_bytes = 0;
+        REQUIRE(
+          cudaSuccess
+          == cub::DeviceRadixSort::SortPairsDescending(
+            nullptr,
+            direct_bytes,
+            keys_in.data().get(),
+            keys_out.data().get(),
+            values_in.data().get(),
+            values_out.data().get(),
+            num_items,
+            0,
+            32,
+            cuda::stream_ref{stream}));
+
+        CAPTURE(bytes, direct_bytes);
+        REQUIRE(bytes >= direct_bytes);
+        // RunsOn should always provide a worst-case storage estimate.
+        REQUIRE(bytes <= 5 * direct_bytes);
+
+        if (!provide_description)
+        {
+          REQUIRE(bytes == direct_bytes);
+        }
+      }
+
+      return error;
     });
     REQUIRE(keys_out == expected.first);
     REQUIRE(values_out == expected.second);
